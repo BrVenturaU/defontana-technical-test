@@ -42,27 +42,14 @@ namespace DefontanaTechnicalTest.Services
 
         public ProductoVentaMayorDto ObtenerProductoVentaMayor(List<VentaDetalle> detalles) =>
             detalles
-                .Select(vd => new
-                {
-                    ProductoId = vd.Producto.Id,
-                    vd.Producto.Nombre,
-                    vd.Producto.Codigo,
-                    vd.TotalLinea
-                })
-                .GroupBy(p => new ProductoDto(p.ProductoId, p.Nombre, p.Codigo))
+                .GroupBy(vd => new ProductoDto(vd.ProductoId, vd.Producto.Nombre, vd.Producto.Codigo))
                 .Select(g =>
                     new ProductoVentaMayorDto(g.Key.Id, g.Key.Nombre, g.Key.Codigo, g.Sum(p => p.TotalLinea)))
                 .MaxBy(p => p.MontoTotal);
 
         public LocalVentaMayorDto ObtenerLocalMayorVenta(List<Venta> ventas) =>
             ventas
-                .Select(d => new
-                {
-                    d.LocalId,
-                    d.Local.Nombre,
-                    d.Total
-                })
-                .GroupBy(l => new LocalDto(l.LocalId, l.Nombre))
+                .GroupBy(v => new LocalDto(v.LocalId, v.Local.Nombre))
                 .Select(g =>
                     new LocalVentaMayorDto(g.Key.Id, g.Key.Nombre, g.Sum(v => v.Total))
                 )
@@ -70,51 +57,40 @@ namespace DefontanaTechnicalTest.Services
 
         public MarcaMayorGananciaDto ObtenerMarcaMayorGanancia(List<VentaDetalle> detalles) =>
             detalles
-                .Select(vd => new
-                {
-                    vd.Producto.MarcaId,
-                    Marca = vd.Producto.Marca.Nombre,
-                    Venta = vd.TotalLinea,
-                    Costo = vd.Producto.CostoUnitario * vd.Cantidad,
-                    MargenGanancia = vd.Cantidad * (vd.PrecioUnitario - vd.Producto.CostoUnitario)
-                }).GroupBy(m => new MarcaDto(m.MarcaId, m.Marca))
+                .GroupBy(vd => new MarcaDto(vd.Producto.MarcaId, vd.Producto.Marca.Nombre))
                 .Select(g =>
-                    new MarcaMayorGananciaDto(g.Key.Id, g.Key.Nombre, g.Sum(m => m.Venta), g.Sum(m => m.Costo), g.Sum(m => m.MargenGanancia)))
+                    new MarcaMayorGananciaDto(g.Key.Id, g.Key.Nombre,
+                        g.Sum(vd => vd.TotalLinea),
+                        g.Sum(vd => vd.Producto.CostoUnitario * vd.Cantidad),
+                        g.Sum(vd => vd.Cantidad * (vd.PrecioUnitario - vd.Producto.CostoUnitario)))
+                )
                 .MaxBy(m => m.Ganancia);
 
-        public List<ProductoLocalVentaDto> ProductoMejorVendidoLocal(List<VentaDetalle> detalles)
+    public List<ProductoLocalVentaDto> ProductoMejorVendidoLocal(List<VentaDetalle> detalles)
         {
             var productosVendidosLocal = detalles
-                .Select(vd => new
-                {
-                    vd.Venta.LocalId,
-                    Sucursal = vd.Venta.Local.Nombre,
+                .GroupBy(vd => new ProductoLocalDto(vd.Venta.LocalId,
+                    vd.Venta.Local.Nombre,
                     vd.ProductoId,
-                    Producto = vd.Producto.Nombre,
-                    vd.Producto.Codigo,
-                    vd.Cantidad
-                }).GroupBy(l => new ProductoLocalDto(l.LocalId,
-                    l.Sucursal,
-                    l.ProductoId,
-                    l.Producto,
-                    l.Codigo))
+                    vd.Producto.Nombre,
+                    vd.Producto.Codigo))
                 .Select(g => new ProductoLocalVentaDto(g.Key.LocalId,
                     g.Key.Sucursal,
                     g.Key.ProductoId,
                     g.Key.Producto,
-                    g.Key.Codigo, g.Sum(g => g.Cantidad)));
+                    g.Key.Codigo, g.Sum(vd => vd.Cantidad)));
 
-            var locales = productosVendidosLocal
-                .GroupBy(l => new LocalDto(l.LocalId,
-                    l.Sucursal))
-                .Select(g => new LocalDto(g.Key.Id,
-                    g.Key.Nombre));
+            var locales = detalles
+                .GroupBy(vd => new LocalDto(vd.Venta.LocalId,
+                    vd.Venta.Local.Nombre))
+                .Select(g => g.Key);
 
-            return locales.Select(l => productosVendidosLocal
-                    .Where(p => p.LocalId == l.Id)
-                    .OrderByDescending(p => p.Ventas)
+            return locales
+                .Select(l => productosVendidosLocal
+                .Where(p => p.LocalId == l.Id)
+                .OrderByDescending(p => p.Ventas)
                     .ThenBy(p => p.ProductoId)
-                    .MaxBy(p => p.Ventas))
+                .MaxBy(p => p.Ventas))
                 .OrderBy(l => l.LocalId).ToList();
         }
     }
